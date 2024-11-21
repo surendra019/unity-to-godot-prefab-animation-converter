@@ -223,11 +223,13 @@ def assign_transform(entries, game_object):
     rotation = f"{-1 * quaternion_to_radians(float(transform.m_LocalRotation['x']), float(transform.m_LocalRotation['y']), float(transform.m_LocalRotation['z']), float(transform.m_LocalRotation['w']))}"
     scale = f"Vector2({float(transform.m_LocalScale['x'])}, {float(transform.m_LocalScale['y'])})"
 
+    z_index = 100 - math.ceil(float(transform.m_LocalPosition['z']))
 
     global godot_scene
     godot_scene += f"position = {position}\n"
     godot_scene += f"rotation = {rotation}\n"
     godot_scene += f"scale = {scale}\n"
+    godot_scene += f"z_index = {z_index}\n"
 
 # assigns the texture.
 def assign_texture(entries, game_object):
@@ -244,13 +246,25 @@ def assign_texture(entries, game_object):
 
 # assigns other properties based on the assigned components to a GameObject.
 def assign_other_properties(entries, game_object):
+    is_game_object_active = True
+    has_visibility_set = False
+    if hasattr(game_object, 'm_IsActive'):
+        enabled = game_object.m_IsActive
+        is_game_object_active = True if enabled == '1' else False
     global godot_scene
     for i in game_object.m_Component:
         _class = get_class_by_anchor(entries, i['component']['fileID'])
         if _class.__class__.__name__ == 'SpriteRenderer':
-            enabled = _class.m_Enabled
-            enabled_string = f"visible = {'true' if int(enabled) == 1 else 'false'}"
+            enabled = True if _class.m_Enabled == '1' else False
+            enabled_string = f"visible = {'true' if (enabled and is_game_object_active) else 'false'}"
             godot_scene += enabled_string
+            has_visibility_set = True
+    
+    if not has_visibility_set:
+        enabled_string = f"visible = {'true' if (is_game_object_active) else 'false'}"
+        godot_scene += enabled_string
+    
+  
 
     
 
@@ -574,82 +588,82 @@ def add_animation_player(entries):
                             godot_scene = insert_at_index(godot_scene, insert_idx, track)
                             insert_idx += len(track)
                             animation_track_idx += 1
-        if hasattr(unity_doc.data[0], 'm_PPtrCurves'):
-            for i in unity_doc.data[0].m_PPtrCurves:
-                keyframes = {}
-                keyframe_array = []
-                match i['classID']:
-                    case '212':
-                        if i['attribute'] == 'm_Sprite':
-                            for j in i['curve']:
-                                keyframe = {}
-                                keyframe['time'] = j['time']
+        # if hasattr(unity_doc.data[0], 'm_PPtrCurves'):
+        #     for i in unity_doc.data[0].m_PPtrCurves:
+        #         keyframes = {}
+        #         keyframe_array = []
+        #         match i['classID']:
+        #             case '212':
+        #                 if i['attribute'] == 'm_Sprite':
+        #                     for j in i['curve']:
+        #                         keyframe = {}
+        #                         keyframe['time'] = j['time']
 
-                                print(get_png_ext_resource_line(entries, j['value']['guid']))
-                                if get_png_ext_resource_line(entries, j['value']['guid']) != False:
-                                    keyframe['value'] = f"ExtResource(\"{extract_id(get_png_ext_resource_line(entries, j['value']['guid']))}\")"
-                                else:
-                                    godot_relative_path = convert_to_res_path(get_png_image_path(entries, None, j['value']['guid']))
-                                    random_id = generate_unique_id()
-                                    line = f"\n[ext_resource type=\"Texture2D\"  path=\"{godot_relative_path}\" id=\"{random_id}\"]\n"
-                                    godot_scene = insert_at_index(godot_scene, texture_insert_position, line)
-                                    insert_idx += len(line)
-                                    keyframe['value'] = f"ExtResource(\"{random_id}\")"
+        #                         # print(get_png_ext_resource_line(entries, j['value']['guid']))
+        #                         if get_png_ext_resource_line(entries, j['value']['guid']) != False:
+        #                             keyframe['value'] = f"ExtResource(\"{extract_id(get_png_ext_resource_line(entries, j['value']['guid']))}\")"
+        #                         else:
+        #                             godot_relative_path = convert_to_res_path(get_png_image_path(entries, None, j['value']['guid']))
+        #                             random_id = generate_unique_id()
+        #                             line = f"\n[ext_resource type=\"Texture2D\"  path=\"{godot_relative_path}\" id=\"{random_id}\"]\n"
+        #                             godot_scene = insert_at_index(godot_scene, texture_insert_position, line)
+        #                             insert_idx += len(line)
+        #                             keyframe['value'] = f"ExtResource(\"{random_id}\")"
 
-                                keyframe_array.append(keyframe)
-                            keyframes['keyframes'] = keyframe_array
-                            keyframes['path'] = i['path']
+        #                         keyframe_array.append(keyframe)
+        #                     keyframes['keyframes'] = keyframe_array
+        #                     keyframes['path'] = i['path']
                             
-                            times_string = "PackedFloat32Array("
-                            values_string = "["
-                            transition_string = "PackedFloat32Array("
+        #                     times_string = "PackedFloat32Array("
+        #                     values_string = "["
+        #                     transition_string = "PackedFloat32Array("
 
-                            for j in keyframes['keyframes']:
-                                time = j['time']
-                                value = j['value']
+        #                     for j in keyframes['keyframes']:
+        #                         time = j['time']
+        #                         value = j['value']
 
-                                if keyframes['keyframes'].index(j) != len(keyframes['keyframes']) - 1:
-                                    times_string += time + ','
-                                    values_string += value + ','
-                                    transition_string += str(1) + ','
-                                else:
-                                    times_string += time
-                                    values_string += value
-                                    transition_string += str(1)
+        #                         if keyframes['keyframes'].index(j) != len(keyframes['keyframes']) - 1:
+        #                             times_string += time + ','
+        #                             values_string += value + ','
+        #                             transition_string += str(1) + ','
+        #                         else:
+        #                             times_string += time
+        #                             values_string += value
+        #                             transition_string += str(1)
                             
-                            times_string += ')'
-                            values_string += ']'
-                            transition_string += ')'
+        #                     times_string += ')'
+        #                     values_string += ']'
+        #                     transition_string += ')'
                             
-                            node_path = '.'
+        #                     node_path = '.'
 
-                            full_path = keyframes['path']  # The file path
-                            node_name = os.path.basename(full_path)  # Extract "ter.anim"
+        #                     full_path = keyframes['path']  # The file path
+        #                     node_name = os.path.basename(full_path)  # Extract "ter.anim"
 
-                            if get_complete_node_path_from_game_object_name(entries, node_name) != "":
-                                node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
+        #                     if get_complete_node_path_from_game_object_name(entries, node_name) != "":
+        #                         node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
 
 
                             
-                            track = (
-                                f"tracks/{animation_track_idx}/type = \"value\"\n"
-                                f"tracks/{animation_track_idx}/imported = false\n"
-                                f"tracks/{animation_track_idx}/enabled = true\n"
-                                f"tracks/{animation_track_idx}/path = NodePath(\"{node_path}:texture\")\n"
-                                f"tracks/{animation_track_idx}/interp = 1\n"
-                                f"tracks/{animation_track_idx}/loop_wrap = true\n"
-                                f"tracks/{animation_track_idx}/keys = "
-                                f"{{\n"
-                                f"\"times\": {times_string},\n"
-                                f"\"transitions\": {transition_string},\n"
-                                f"\"update\": 0,\n"
-                                f"\"values\": {values_string}\n"
-                                f"}}\n"
-                            )
+        #                     track = (
+        #                         f"tracks/{animation_track_idx}/type = \"value\"\n"
+        #                         f"tracks/{animation_track_idx}/imported = false\n"
+        #                         f"tracks/{animation_track_idx}/enabled = true\n"
+        #                         f"tracks/{animation_track_idx}/path = NodePath(\"{node_path}:texture\")\n"
+        #                         f"tracks/{animation_track_idx}/interp = 1\n"
+        #                         f"tracks/{animation_track_idx}/loop_wrap = true\n"
+        #                         f"tracks/{animation_track_idx}/keys = "
+        #                         f"{{\n"
+        #                         f"\"times\": {times_string},\n"
+        #                         f"\"transitions\": {transition_string},\n"
+        #                         f"\"update\": 0,\n"
+        #                         f"\"values\": {values_string}\n"
+        #                         f"}}\n"
+        #                     )
 
-                            godot_scene = insert_at_index(godot_scene, insert_idx, track)
-                            insert_idx += len(track)
-                            animation_track_idx += 1
+        #                     godot_scene = insert_at_index(godot_scene, insert_idx, track)
+        #                     insert_idx += len(track)
+        #                     animation_track_idx += 1
                 
     animation_library_id = generate_unique_id()
     animation_library_string = f"\n[sub_resource type=\"AnimationLibrary\" id=\"{animation_library_id}\"]\n"
@@ -737,13 +751,16 @@ def get_png_image_path(entries, game_object = None, guid = None):
             for i in game_object.m_Component:
                 _class = get_class_by_anchor(entries, i['component']['fileID'])
                 if _class.__class__.__name__ == 'SpriteRenderer':
-                    guid = _class.m_Sprite['guid']
-                    all_png_meta_files = get_all_files(directory_input.get(), ".png.meta")
-                    for file in all_png_meta_files:
-                        unity_doc = unityparser.UnityDocument.load_yaml(file)
-                        for entry in unity_doc.entries:
-                            if guid == entry['guid']:
-                                return file.removesuffix('.meta')
+                    if 'guid' in _class.m_Sprite:
+                        guid = _class.m_Sprite['guid']
+                        all_png_meta_files = get_all_files(directory_input.get(), ".png.meta")
+                        for file in all_png_meta_files:
+                            unity_doc = unityparser.UnityDocument.load_yaml(file)
+                            for entry in unity_doc.entries:
+                                if guid == entry['guid']:
+                                    return file.removesuffix('.meta')
+                    else:
+                        return None
                             # print_entry_attributes(entry)
     if guid != None:
         all_png_meta_files = get_all_files(directory_input.get(), ".png.meta")
