@@ -5,6 +5,9 @@ import math
 import random
 import string
 import os
+import re
+
+# TODO: check if the animation track of changing Sprite has guid when the Sprite is not assigned in some keyframe to enter "null" there.
 
 godot_scene = ""
 parent_name = ""
@@ -39,7 +42,7 @@ def parse_unity_prefab_to_godot(prefab_path, text_widget):
         global second_node_insert_position
 
         global texture_insert_position
-        texture_insert_position = len(godot_scene) + 1
+        texture_insert_position = len(godot_scene)
 
         # print(type(get_class_by_anchor(entries, "5367279928316716526").m_Component[0]['component']['fileID']))
         # print(find_parent(entries).m_Name)
@@ -50,9 +53,7 @@ def parse_unity_prefab_to_godot(prefab_path, text_widget):
 
         add_children(entries, get_transform_object_by_game_object(entries, parent_node))
 
-        add_animation_player(entries)    
-        # print(get_complete_node_path_from_game_object_name(entries, "Left_Leg_lowPart_Anim"))
-        
+        add_animation_player(entries)
         # Display the Godot scene structure in the text widget
         text_widget.insert(tk.END, godot_scene)
 
@@ -212,24 +213,21 @@ def assign_properties(entries, node_type, game_object):
         case 'Sprite2D':
             assign_transform(entries, game_object)
             assign_texture(entries, game_object)
+    assign_other_properties(entries, game_object)
             # godot_scene += f"z_index = + "
 
-
+# assigns transform of the GameObject to the respective node.
 def assign_transform(entries, game_object):
     transform = get_transform_object_by_game_object(entries, game_object)
     position = f"Vector2({float(transform.m_LocalPosition['x']) * 100}, {-1 * float(transform.m_LocalPosition['y']) * 100})"
-    rotation = f"{quaternion_to_radians(float(transform.m_LocalRotation['x']), float(transform.m_LocalRotation['y']), float(transform.m_LocalRotation['z']), float(transform.m_LocalRotation['w']))}"
+    rotation = f"{-1 * quaternion_to_radians(float(transform.m_LocalRotation['x']), float(transform.m_LocalRotation['y']), float(transform.m_LocalRotation['z']), float(transform.m_LocalRotation['w']))}"
     scale = f"Vector2({float(transform.m_LocalScale['x'])}, {float(transform.m_LocalScale['y'])})"
-    # if get_node_type_from_game_object(entries, game_object) == 'Sprite2D':
-    #     scale = f"Vector2({float(transform.m_LocalScale['x']) / 100}, {float(transform.m_LocalScale['y']) / 100})"
-    # z_index = f"{100 - float(transform.m_LocalPosition['z'])}"
+
 
     global godot_scene
     godot_scene += f"position = {position}\n"
     godot_scene += f"rotation = {rotation}\n"
     godot_scene += f"scale = {scale}\n"
-    # if transform.m_LocalPosition['z'] != '0':
-    #     godot_scene += f"z_index = {z_index}"
 
 # assigns the texture.
 def assign_texture(entries, game_object):
@@ -244,11 +242,17 @@ def assign_texture(entries, game_object):
         sub_resource_target_position = godot_scene.find(line) + len(line) + 1
         godot_scene += f"texture = ExtResource(\"{random_id}\")\n"
 
-         
+# assigns other properties based on the assigned components to a GameObject.
+def assign_other_properties(entries, game_object):
+    global godot_scene
+    for i in game_object.m_Component:
+        _class = get_class_by_anchor(entries, i['component']['fileID'])
+        if _class.__class__.__name__ == 'SpriteRenderer':
+            enabled = _class.m_Enabled
+            enabled_string = f"visible = {'true' if int(enabled) == 1 else 'false'}"
+            godot_scene += enabled_string
 
-
-
-
+    
 
 
 
@@ -339,11 +343,11 @@ def add_animation_player(entries):
                     value = i['value']
                     if keyframes['keyframes'].index(i) != len(keyframes['keyframes']) - 1:
                         times_string += time + ','
-                        values_string += str(degrees_to_radians(float(value))) + ','
+                        values_string += str(-1 * degrees_to_radians(float(value))) + ','
                         transition_string += str(1) + ','
                     else:
                         times_string += time
-                        values_string += str(degrees_to_radians(float(value)))
+                        values_string += str(-1 * degrees_to_radians(float(value)))
                         transition_string += str(1)
                 
                 times_string += ')'
@@ -385,7 +389,7 @@ def add_animation_player(entries):
                 for j in i['curve']['m_Curve']:
                     keyframe = {}
                     keyframe['time'] = j['time']
-                    keyframe['value'] = f"Vector2({float(j['value']['x']) * -100}, {float(j['value']['y']) * -100})"
+                    keyframe['value'] = f"Vector2({float(j['value']['x']) * 100}, {float(j['value']['y']) * -100})"
                     keyframe_array.append(keyframe)
                 keyframes['keyframes'] = keyframe_array
                 keyframes['path'] = i['path']
@@ -570,7 +574,82 @@ def add_animation_player(entries):
                             godot_scene = insert_at_index(godot_scene, insert_idx, track)
                             insert_idx += len(track)
                             animation_track_idx += 1
+        if hasattr(unity_doc.data[0], 'm_PPtrCurves'):
+            for i in unity_doc.data[0].m_PPtrCurves:
+                keyframes = {}
+                keyframe_array = []
+                match i['classID']:
+                    case '212':
+                        if i['attribute'] == 'm_Sprite':
+                            for j in i['curve']:
+                                keyframe = {}
+                                keyframe['time'] = j['time']
 
+                                print(get_png_ext_resource_line(entries, j['value']['guid']))
+                                if get_png_ext_resource_line(entries, j['value']['guid']) != False:
+                                    keyframe['value'] = f"ExtResource(\"{extract_id(get_png_ext_resource_line(entries, j['value']['guid']))}\")"
+                                else:
+                                    godot_relative_path = convert_to_res_path(get_png_image_path(entries, None, j['value']['guid']))
+                                    random_id = generate_unique_id()
+                                    line = f"\n[ext_resource type=\"Texture2D\"  path=\"{godot_relative_path}\" id=\"{random_id}\"]\n"
+                                    godot_scene = insert_at_index(godot_scene, texture_insert_position, line)
+                                    insert_idx += len(line)
+                                    keyframe['value'] = f"ExtResource(\"{random_id}\")"
+
+                                keyframe_array.append(keyframe)
+                            keyframes['keyframes'] = keyframe_array
+                            keyframes['path'] = i['path']
+                            
+                            times_string = "PackedFloat32Array("
+                            values_string = "["
+                            transition_string = "PackedFloat32Array("
+
+                            for j in keyframes['keyframes']:
+                                time = j['time']
+                                value = j['value']
+
+                                if keyframes['keyframes'].index(j) != len(keyframes['keyframes']) - 1:
+                                    times_string += time + ','
+                                    values_string += value + ','
+                                    transition_string += str(1) + ','
+                                else:
+                                    times_string += time
+                                    values_string += value
+                                    transition_string += str(1)
+                            
+                            times_string += ')'
+                            values_string += ']'
+                            transition_string += ')'
+                            
+                            node_path = '.'
+
+                            full_path = keyframes['path']  # The file path
+                            node_name = os.path.basename(full_path)  # Extract "ter.anim"
+
+                            if get_complete_node_path_from_game_object_name(entries, node_name) != "":
+                                node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
+
+
+                            
+                            track = (
+                                f"tracks/{animation_track_idx}/type = \"value\"\n"
+                                f"tracks/{animation_track_idx}/imported = false\n"
+                                f"tracks/{animation_track_idx}/enabled = true\n"
+                                f"tracks/{animation_track_idx}/path = NodePath(\"{node_path}:texture\")\n"
+                                f"tracks/{animation_track_idx}/interp = 1\n"
+                                f"tracks/{animation_track_idx}/loop_wrap = true\n"
+                                f"tracks/{animation_track_idx}/keys = "
+                                f"{{\n"
+                                f"\"times\": {times_string},\n"
+                                f"\"transitions\": {transition_string},\n"
+                                f"\"update\": 0,\n"
+                                f"\"values\": {values_string}\n"
+                                f"}}\n"
+                            )
+
+                            godot_scene = insert_at_index(godot_scene, insert_idx, track)
+                            insert_idx += len(track)
+                            animation_track_idx += 1
                 
     animation_library_id = generate_unique_id()
     animation_library_string = f"\n[sub_resource type=\"AnimationLibrary\" id=\"{animation_library_id}\"]\n"
@@ -651,20 +730,29 @@ def create_ui():
     window.mainloop()
 
 # returns the image's path if the passed GameObject has a SpriteRenderer and it further has an image assigned on it.
-def get_png_image_path(entries, game_object):
+def get_png_image_path(entries, game_object = None, guid = None):
     # path = ''
-    if hasattr(game_object, "m_Component"):
-        for i in game_object.m_Component:
-            _class = get_class_by_anchor(entries, i['component']['fileID'])
-            if _class.__class__.__name__ == 'SpriteRenderer':
-                guid = _class.m_Sprite['guid']
-                all_png_meta_files = get_all_files(directory_input.get(), ".png.meta")
-                for file in all_png_meta_files:
-                    unity_doc = unityparser.UnityDocument.load_yaml(file)
-                    for entry in unity_doc.entries:
-                        if guid == entry['guid']:
-                            return file.removesuffix('.meta')
-                        # print_entry_attributes(entry)
+    if game_object != None:
+        if hasattr(game_object, "m_Component"):
+            for i in game_object.m_Component:
+                _class = get_class_by_anchor(entries, i['component']['fileID'])
+                if _class.__class__.__name__ == 'SpriteRenderer':
+                    guid = _class.m_Sprite['guid']
+                    all_png_meta_files = get_all_files(directory_input.get(), ".png.meta")
+                    for file in all_png_meta_files:
+                        unity_doc = unityparser.UnityDocument.load_yaml(file)
+                        for entry in unity_doc.entries:
+                            if guid == entry['guid']:
+                                return file.removesuffix('.meta')
+                            # print_entry_attributes(entry)
+    if guid != None:
+        all_png_meta_files = get_all_files(directory_input.get(), ".png.meta")
+        for file in all_png_meta_files:
+            unity_doc = unityparser.UnityDocument.load_yaml(file)
+            for entry in unity_doc.entries:
+                if guid == entry['guid']:
+                    return file.removesuffix('.meta')
+
                     
         
 # scans all the files with suffix (extension) in the passed directory.
@@ -827,6 +915,36 @@ def get_insert_index_after_sub_resources(godot_scene: str) -> int:
 
     # Return the index in the file string to insert after the last ext_resource
     return last_ext_resource_index
+
+
+# checks if a png resource is already imported in the scene.
+def get_png_ext_resource_line(entries, guid):
+    global_path = get_png_image_path(entries, None, guid)
+    global godot_scene
+    if global_path != '':
+        relative_path = convert_to_res_path(global_path)
+        line = find_line_with_substring(godot_scene, relative_path)
+        return line
+
+# finds the line in the scene which has some substring.
+def find_line_with_substring(complete_string, substring):
+    # Split the complete string into lines
+    lines = complete_string.splitlines()
+    
+    # Search for the substring in each line
+    for line in lines:
+        if substring in line:
+            return line
+    
+    return False
+
+def extract_id(input_string):
+    # Use a regular expression to find the id value
+    match = re.search(r'id="([^"]+)"', input_string)
+    if match:
+        return match.group(1)  # Return the captured group (the id value)
+    return None  # Return None if no match is found
+
 
 if __name__ == "__main__":
     create_ui()
