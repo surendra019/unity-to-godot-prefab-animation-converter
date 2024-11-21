@@ -12,6 +12,7 @@ import re
 godot_scene = ""
 parent_name = ""
 directory_input = None
+reference_folder_input = None
 texture_insert_position = -1
 sub_resource_target_position = -1
 second_node_insert_position = -1
@@ -308,12 +309,17 @@ def add_animation_player(entries):
 
     for file in files:
         unity_doc = unityparser.UnityDocument.load_yaml(file)
+        
+        if len(unity_doc.data[0].m_EulerCurves) == 0 and len(unity_doc.data[0].m_PositionCurves) == 0 and len(unity_doc.data[0].m_ScaleCurves) == 0:
+            continue
 
         file_path = file  # The file path
         file_name = os.path.basename(file_path)  # Extract "ter.anim"
         name_without_extension = os.path.splitext(file_name)[0]  # Extract "ter"
 
+
         anim_length = float(unity_doc.data[0].m_EulerCurves[0]['curve']['m_Curve'][-1]['time'])
+
         animation_id = generate_unique_id()
         animation_text = f"\n[sub_resource type=\"Animation\" id=\"{animation_id}\"]\nresource_name = \"{name_without_extension}\"\nlength = {anim_length}\n"
 
@@ -323,12 +329,12 @@ def add_animation_player(entries):
         godot_scene = insert_at_index(godot_scene, insert_idx, animation_text)
         insert_idx += len(animation_text)
 
-        # for getting the animation length.
-        for i in unity_doc.data[0].m_EulerCurves:
-            times = []
+        # # for getting the animation length.
+        # for i in unity_doc.data[0].m_EulerCurves:
+        #     times = []
 
-            for j in i['curve']['m_Curve']:
-                times.append(float(j['time']))
+        #     for j in i['curve']['m_Curve']:
+        #         times.append(float(j['time']))
 
 
         animation_name_to_id[name_without_extension] = animation_id
@@ -588,82 +594,89 @@ def add_animation_player(entries):
                             godot_scene = insert_at_index(godot_scene, insert_idx, track)
                             insert_idx += len(track)
                             animation_track_idx += 1
-        # if hasattr(unity_doc.data[0], 'm_PPtrCurves'):
-        #     for i in unity_doc.data[0].m_PPtrCurves:
-        #         keyframes = {}
-        #         keyframe_array = []
-        #         match i['classID']:
-        #             case '212':
-        #                 if i['attribute'] == 'm_Sprite':
-        #                     for j in i['curve']:
-        #                         keyframe = {}
-        #                         keyframe['time'] = j['time']
+        if hasattr(unity_doc.data[0], 'm_PPtrCurves'):
+            for i in unity_doc.data[0].m_PPtrCurves:
+                keyframes = {}
+                keyframe_array = []
+                match i['classID']:
+                    case '212':
+                        if i['attribute'] == 'm_Sprite':
+                            for j in i['curve']:
+                                keyframe = {}
+                                keyframe['time'] = j['time']
 
-        #                         # print(get_png_ext_resource_line(entries, j['value']['guid']))
-        #                         if get_png_ext_resource_line(entries, j['value']['guid']) != False:
-        #                             keyframe['value'] = f"ExtResource(\"{extract_id(get_png_ext_resource_line(entries, j['value']['guid']))}\")"
-        #                         else:
-        #                             godot_relative_path = convert_to_res_path(get_png_image_path(entries, None, j['value']['guid']))
-        #                             random_id = generate_unique_id()
-        #                             line = f"\n[ext_resource type=\"Texture2D\"  path=\"{godot_relative_path}\" id=\"{random_id}\"]\n"
-        #                             godot_scene = insert_at_index(godot_scene, texture_insert_position, line)
-        #                             insert_idx += len(line)
-        #                             keyframe['value'] = f"ExtResource(\"{random_id}\")"
+                                # print(get_png_ext_resource_line(entries, j['value']['guid']))
+                                
+                                if 'guid' in j['value']:
+                                    if get_png_image_path(entries, None, j['value']['guid']) == None:
+                                        continue
+                                    if get_png_ext_resource_line(entries, j['value']['guid']) != False:
+                                        keyframe['value'] = f"ExtResource(\"{extract_id(get_png_ext_resource_line(entries, j['value']['guid']))}\")"
+                                    else:
+                                        godot_relative_path = convert_to_res_path(get_png_image_path(entries, None, j['value']['guid']))
+                                        random_id = generate_unique_id()
+                                        line = f"\n[ext_resource type=\"Texture2D\"  path=\"{godot_relative_path}\" id=\"{random_id}\"]\n"
+                                        godot_scene = insert_at_index(godot_scene, texture_insert_position, line)
+                                        insert_idx += len(line)
+                                        keyframe['value'] = f"ExtResource(\"{random_id}\")"
+                                else:
+                                    keyframe['value'] = 'null'
 
-        #                         keyframe_array.append(keyframe)
-        #                     keyframes['keyframes'] = keyframe_array
-        #                     keyframes['path'] = i['path']
+                                keyframe_array.append(keyframe)
+                            keyframes['keyframes'] = keyframe_array
+                            keyframes['path'] = i['path']
                             
-        #                     times_string = "PackedFloat32Array("
-        #                     values_string = "["
-        #                     transition_string = "PackedFloat32Array("
+                            times_string = "PackedFloat32Array("
+                            values_string = "["
+                            transition_string = "PackedFloat32Array("
 
-        #                     for j in keyframes['keyframes']:
-        #                         time = j['time']
-        #                         value = j['value']
 
-        #                         if keyframes['keyframes'].index(j) != len(keyframes['keyframes']) - 1:
-        #                             times_string += time + ','
-        #                             values_string += value + ','
-        #                             transition_string += str(1) + ','
-        #                         else:
-        #                             times_string += time
-        #                             values_string += value
-        #                             transition_string += str(1)
+                            for j in keyframes['keyframes']:
+                                time = j['time']
+                                value = j['value']
+
+                                if keyframes['keyframes'].index(j) != len(keyframes['keyframes']) - 1:
+                                    times_string += time + ','
+                                    values_string += value + ','
+                                    transition_string += str(1) + ','
+                                else:
+                                    times_string += time
+                                    values_string += value
+                                    transition_string += str(1)
                             
-        #                     times_string += ')'
-        #                     values_string += ']'
-        #                     transition_string += ')'
+                            times_string += ')'
+                            values_string += ']'
+                            transition_string += ')'
                             
-        #                     node_path = '.'
+                            node_path = '.'
 
-        #                     full_path = keyframes['path']  # The file path
-        #                     node_name = os.path.basename(full_path)  # Extract "ter.anim"
+                            full_path = keyframes['path']  # The file path
+                            node_name = os.path.basename(full_path)  # Extract "ter.anim"
 
-        #                     if get_complete_node_path_from_game_object_name(entries, node_name) != "":
-        #                         node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
 
+                            if get_complete_node_path_from_game_object_name(entries, node_name) != "":
+                                node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
 
                             
-        #                     track = (
-        #                         f"tracks/{animation_track_idx}/type = \"value\"\n"
-        #                         f"tracks/{animation_track_idx}/imported = false\n"
-        #                         f"tracks/{animation_track_idx}/enabled = true\n"
-        #                         f"tracks/{animation_track_idx}/path = NodePath(\"{node_path}:texture\")\n"
-        #                         f"tracks/{animation_track_idx}/interp = 1\n"
-        #                         f"tracks/{animation_track_idx}/loop_wrap = true\n"
-        #                         f"tracks/{animation_track_idx}/keys = "
-        #                         f"{{\n"
-        #                         f"\"times\": {times_string},\n"
-        #                         f"\"transitions\": {transition_string},\n"
-        #                         f"\"update\": 0,\n"
-        #                         f"\"values\": {values_string}\n"
-        #                         f"}}\n"
-        #                     )
+                            track = (
+                                f"tracks/{animation_track_idx}/type = \"value\"\n"
+                                f"tracks/{animation_track_idx}/imported = false\n"
+                                f"tracks/{animation_track_idx}/enabled = true\n"
+                                f"tracks/{animation_track_idx}/path = NodePath(\"{node_path}:texture\")\n"
+                                f"tracks/{animation_track_idx}/interp = 1\n"
+                                f"tracks/{animation_track_idx}/loop_wrap = true\n"
+                                f"tracks/{animation_track_idx}/keys = "
+                                f"{{\n"
+                                f"\"times\": {times_string},\n"
+                                f"\"transitions\": {transition_string},\n"
+                                f"\"update\": 0,\n"
+                                f"\"values\": {values_string}\n"
+                                f"}}\n"
+                            )
 
-        #                     godot_scene = insert_at_index(godot_scene, insert_idx, track)
-        #                     insert_idx += len(track)
-        #                     animation_track_idx += 1
+                            godot_scene = insert_at_index(godot_scene, insert_idx, track)
+                            insert_idx += len(track)
+                            animation_track_idx += 1
                 
     animation_library_id = generate_unique_id()
     animation_library_string = f"\n[sub_resource type=\"AnimationLibrary\" id=\"{animation_library_id}\"]\n"
@@ -699,7 +712,7 @@ def add_animation_player(entries):
 
 # Function to open a file dialog and load the prefab
 def load_prefab(text_widget):
-    if directory_input and directory_input.get() == "":
+    if directory_input and directory_input.get() == "" or reference_folder_input and reference_folder_input.get() == "":
         messagebox.showerror("Error", "Enter a directory!")
         return
 
@@ -726,8 +739,21 @@ def create_ui():
     input_box = tk.Entry(window)
     input_box.pack(pady=10)
 
+     
+    # Add a label
+    refernece_folder_label = tk.Label(window, text="Enter reference folder path(in '/')")
+    refernece_folder_label.pack(pady=1)
+
+    # Add an input box
+    refernece_folder_in= tk.Entry(window)
+    refernece_folder_in.pack(pady=10)
+
+
     global directory_input
     directory_input = input_box
+
+    global reference_folder_input
+    reference_folder_input = refernece_folder_in
 
     # Create a text widget to display the prefab details
     text_widget = tk.Text(window, height=20, width=80)
@@ -799,7 +825,7 @@ def get_all_files(directory, suffix):
 
 
 # convert the path to Godot's project relative path.
-def convert_to_res_path(file_path, reference_folder="Meta"):
+def convert_to_res_path(file_path):
     """
     Converts a given file path to a res:// path, using the specified reference folder.
 
@@ -810,6 +836,7 @@ def convert_to_res_path(file_path, reference_folder="Meta"):
     Returns:
         str: The converted res:// path, or None if the path does not start with the reference folder.
     """
+    reference_folder = reference_folder_input.get()
     try:
         # Normalize the file path to handle both Windows and UNIX style paths
         file_path = os.path.normpath(file_path)
@@ -831,7 +858,7 @@ def convert_to_res_path(file_path, reference_folder="Meta"):
             relative_path = file_path[reference_folder_pos+len(reference_folder_path):]
             # Clean up the relative path to make sure it's in the correct format
             relative_path = relative_path.replace(os.sep, "/").lstrip("/")
-            res_path = f"res://Meta/{relative_path}"
+            res_path = f"res://{reference_folder}/{relative_path}"
 
             return res_path
         else:
