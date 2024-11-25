@@ -1,6 +1,7 @@
 from tkinter import filedialog, messagebox
 import unityparser
 import ui
+import string
 import utils
 import os
 
@@ -15,7 +16,6 @@ second_node_insert_position = -1
 def parse_unity_prefab_to_godot(prefab_path):
     try:
         unity_doc = unityparser.UnityDocument.load_yaml(prefab_path)
-
         # Get all entries in the Unity prefab (these are Unity components)
         entries = unity_doc.entries
         
@@ -35,10 +35,18 @@ def parse_unity_prefab_to_godot(prefab_path):
         godot_scene += f"\n\n[node name=\"{parent_node.m_Name}\" type=\"Node2D\"]\n"
         second_node_insert_position = len(f"\n\n[node name=\"{parent_node.m_Name}\" type=\"Node2D\"]\n")
 
+        all_pngs = utils.get_all_files(ui.directory, ".png.meta")
+        for file in all_pngs:
+            unity_d = unityparser.UnityDocument.load_yaml(file)
+            for entry in unity_d.entries:
+                utils.guid_to_path[entry['guid']] = file.removesuffix('.meta')
+
+        # print(utils.guid_to_path)
         add_children(entries, get_transform_object_by_game_object(entries, parent_node))
 
         add_animation_player(entries)
-    
+        # print(get_complete_node_path_from_game_object_name(entries, "Elephant_Side_Charecter_Trns"))
+        # print(is_sub_path_exists(entries, "Elephant_Side_Charecter_Trns/FullBody_Anim/Body_Transform/Body_Anim/Hand1_Transform/Hand1_Anim"))
 
         # Optionally, save the generated scene to a .tscn file
         save_path = filedialog.asksaveasfilename(defaultextension=".tscn", filetypes=[("Godot Scene", "*.tscn")])
@@ -115,13 +123,19 @@ def get_transform_object_by_game_object(entries, game_object):
 
 
 # returns the node path from the GameObject's name.
-def get_complete_node_path_from_game_object_name(entries, name):
+def get_complete_node_path_from_game_object_name(entries, sub_path):
 
-    game_object = get_game_object_from_name(entries, name)
-    if game_object == None:
+    # print("ch1")
+    game_object = is_sub_path_exists(entries, sub_path)
+    # print((game_object))
+    if not game_object[0]:
         return None
+    # print("after")
+    # print("ch2")
     result = ""
-    entry = get_transform_object_by_game_object(entries, game_object)
+
+    entry = get_transform_object_by_game_object(entries, game_object[1])
+    # print("ch3")
     if entry.__class__.__name__ == "Transform":
         if hasattr(entry, "m_Father"):
             current_transform = entry
@@ -131,7 +145,55 @@ def get_complete_node_path_from_game_object_name(entries, name):
                 current_transform = get_class_by_anchor(entries, current_transform.m_Father['fileID'])
     index = result.find('/')  # Find the first occurrence of the character
 
-    return result[index + 1:]
+    full_path = result[index + 1:]
+    resultant_path = utils.get_path_to_substring(full_path, sub_path)
+    
+    return resultant_path
+
+
+# returns true if a subpath exists in node hierarchy.
+def is_sub_path_exists(entries, sub_path: string):
+    segments = sub_path.split('/')
+    # print(segments)
+    if len(segments) > 0:
+        for_check_path = segments[0] + '/'
+        last_game_object = None
+
+        if len(segments) == 1:
+            result = get_game_object_from_name(entries, segments[0])
+            if result != None:
+                return [True, result]
+            return [False, None]
+        else:
+            start_idx = 0
+            current_game_obj = get_game_object_from_name(entries, segments[0])
+            current_trans = get_transform_object_by_game_object(entries, current_game_obj)
+            while current_trans != None and start_idx + 1 < len(segments):
+                has_there = False
+                if len(current_trans.m_Children) == 0:
+                    break
+                for i in current_trans.m_Children:
+                    child_game_obj = get_game_object_by_transform_anchor(entries, i['fileID'])
+                    # print("dh1")
+                    if start_idx + 1 < len(segments) and child_game_obj.m_Name == segments[start_idx + 1]:
+                        # print("dh2")
+                        has_there = True
+                        current_trans = get_transform_object_by_game_object(entries, child_game_obj)
+                        start_idx += 1
+                        for_check_path += child_game_obj.m_Name + '/'
+                        last_game_object = child_game_obj
+                if not has_there:
+                    break
+
+        
+        # print(for_check_path)
+        if for_check_path == sub_path + '/':
+            return [True, last_game_object]
+    return [False, last_game_object]
+    
+
+
+
 
 # helper function to return the GameObject from its name.
 def get_game_object_from_name(entries, name):
@@ -197,6 +259,7 @@ def assign_transform(entries, game_object):
 # assigns the texture.
 def assign_texture(entries, game_object):
     path = get_png_image_path(entries, game_object)
+    print(path)
     if path != None:
         godot_relative_path = utils.convert_to_res_path(path, ui.reference_folder)
         global godot_scene
@@ -219,11 +282,14 @@ def assign_other_properties(entries, game_object):
         _class = get_class_by_anchor(entries, i['component']['fileID'])
         if _class.__class__.__name__ == 'SpriteRenderer':
             z_index = _class.m_SortingOrder
+
+            mask_interaction = False if _class.m_MaskInteraction == '1' else True # kind of visibility in godot for now.
+
             z_index_string = f"z_index = {z_index}"
 
             godot_scene += z_index_string
             enabled = True if _class.m_Enabled == '1' else False
-            enabled_string = f"visible = {'true' if (enabled and is_game_object_active) else 'false'}"
+            enabled_string = f"visible = {'true' if (enabled and is_game_object_active and mask_interaction) else 'false'}"
             godot_scene += enabled_string
             has_visibility_set = True
     
@@ -262,11 +328,12 @@ def add_animation_player(entries):
     insert_idx = utils.get_insert_index_after_ext_resources(godot_scene)
     animation_name_to_id = {}
 
-    files = [animation_files[24]]
-    print(len(animation_files))
+    files = animation_files
 
     for file in files:
-        print(animation_files.index(file) + 1)
+        ui.progress_bar['value'] = (100 / len(files)) * files.index(file) + 1
+        ui.window.update_idletasks()
+
         unity_doc = unityparser.UnityDocument.load_yaml(file)
         
         if len(unity_doc.data[0].m_EulerCurves) == 0 and len(unity_doc.data[0].m_PositionCurves) == 0 and len(unity_doc.data[0].m_ScaleCurves) == 0:
@@ -329,14 +396,13 @@ def add_animation_player(entries):
                 node_path = '.'
 
                 full_path = keyframes['path']  # The file path
-                node_name = os.path.basename(full_path)  # Extract "ter.anim"
 
 
 
-                if get_complete_node_path_from_game_object_name(entries, node_name) == None:
+                if get_complete_node_path_from_game_object_name(entries, full_path) == None:
                     continue
-                elif get_complete_node_path_from_game_object_name(entries, node_name) != "":
-                    node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
+                elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
+                    node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
                 
                 track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "rotation")
@@ -380,12 +446,12 @@ def add_animation_player(entries):
                 node_path = '.'
 
                 full_path = keyframes['path']  # The file path
-                node_name = os.path.basename(full_path)  # Extract "ter.anim"
+               
 
-                if get_complete_node_path_from_game_object_name(entries, node_name) == None:
+                if get_complete_node_path_from_game_object_name(entries, full_path) == None:
                     continue
-                elif get_complete_node_path_from_game_object_name(entries, node_name) != "":
-                    node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
+                elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
+                    node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
                 
                 track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "position")
@@ -431,12 +497,11 @@ def add_animation_player(entries):
                 node_path = '.'
 
                 full_path = keyframes['path']  # The file path
-                node_name = os.path.basename(full_path)  # Extract "ter.anim"
 
-                if get_complete_node_path_from_game_object_name(entries, node_name) == None:
+                if get_complete_node_path_from_game_object_name(entries, full_path) == None:
                     continue
-                elif get_complete_node_path_from_game_object_name(entries, node_name) != "":
-                    node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
+                elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
+                    node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
 
                 
@@ -487,20 +552,67 @@ def add_animation_player(entries):
                             node_path = '.'
 
                             full_path = keyframes['path']  # The file path
-                            node_name = os.path.basename(full_path)  # Extract "ter.anim"
 
-                            if get_complete_node_path_from_game_object_name(entries, node_name) == None:
+                            if get_complete_node_path_from_game_object_name(entries, full_path) == None:
                                 continue
-                            elif get_complete_node_path_from_game_object_name(entries, node_name) != "":
-                                node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
+                            elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
+                                node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
                             
-                            track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "visible")
+                            track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "visible", 1)
 
 
                             godot_scene = utils.insert_at_index(godot_scene, insert_idx, track)
                             insert_idx += len(track)
                             animation_track_idx += 1
+
+                        if i['attribute'] == 'm_SortingOrder':
+                            for j in i['curve']['m_Curve']:
+                                keyframe = {}
+                                keyframe['time'] = j['time']
+                                keyframe['value'] = j['value']
+                                keyframe_array.append(keyframe)
+
+                            keyframes['keyframes'] = keyframe_array
+                            keyframes['path'] = i['path']
+                            times_string = "PackedFloat32Array("
+                            values_string = "["
+                            transition_string = "PackedFloat32Array("
+
+                            for j in keyframes['keyframes']:
+                                time = j['time']
+                                value = j['value']
+
+                                if keyframes['keyframes'].index(j) != len(keyframes['keyframes']) - 1:
+                                    times_string += time + ','
+                                    values_string += value + ','
+                                    transition_string += str(1) + ','
+                                else:
+                                    times_string += time
+                                    values_string += value
+                                    transition_string += str(1)
+                            
+                            times_string += ')'
+                            values_string += ']'
+                            transition_string += ')'
+                            
+                            node_path = '.'
+
+                            full_path = keyframes['path']  # The file path
+
+                            if get_complete_node_path_from_game_object_name(entries, full_path) == None:
+                                continue
+                            elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
+                                node_path = get_complete_node_path_from_game_object_name(entries, full_path)
+
+                            
+                            track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "z_index", 1)
+
+
+                            godot_scene = utils.insert_at_index(godot_scene, insert_idx, track)
+                            insert_idx += len(track)
+                            animation_track_idx += 1
+
                     case '1':
                         if i['attribute'] == 'm_IsActive':
                             for j in i['curve']['m_Curve']:
@@ -535,16 +647,15 @@ def add_animation_player(entries):
                             node_path = '.'
 
                             full_path = keyframes['path']  # The file path
-                            node_name = os.path.basename(full_path)  # Extract "ter.anim"
 
-                            if get_complete_node_path_from_game_object_name(entries, node_name) == None:
+                            if get_complete_node_path_from_game_object_name(entries, full_path) == None:
                                 continue
-                            elif get_complete_node_path_from_game_object_name(entries, node_name) != "":
-                                node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
+                            elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
+                                node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
 
                             
-                            track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "visible")
+                            track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "visible", 1)
 
                             godot_scene = utils.insert_at_index(godot_scene, insert_idx, track)
                             insert_idx += len(track)
@@ -606,13 +717,12 @@ def add_animation_player(entries):
                             node_path = '.'
 
                             full_path = keyframes['path']  # The file path
-                            node_name = os.path.basename(full_path)  # Extract "ter.anim"
 
 
-                            if get_complete_node_path_from_game_object_name(entries, node_name) == None:
+                            if get_complete_node_path_from_game_object_name(entries, full_path) == None:
                                 continue
-                            elif get_complete_node_path_from_game_object_name(entries, node_name) != "":
-                                node_path = get_complete_node_path_from_game_object_name(entries, node_name)[:-1]
+                            elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
+                                node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
                             
                             track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "texture")
@@ -665,22 +775,14 @@ def get_png_image_path(entries, game_object = None, guid = None):
                 if _class.__class__.__name__ == 'SpriteRenderer':
                     if 'guid' in _class.m_Sprite:
                         guid = _class.m_Sprite['guid']
-                        all_png_meta_files = utils.get_all_files(ui.directory, ".png.meta")
-                        for file in all_png_meta_files:
-                            unity_doc = unityparser.UnityDocument.load_yaml(file)
-                            for entry in unity_doc.entries:
-                                if guid == entry['guid']:
-                                    return file.removesuffix('.meta')
+                        if guid in utils.guid_to_path:
+                            return utils.guid_to_path[guid]
                     else:
                         return None
                             # print_entry_attributes(entry)
     if guid != None:
-        all_png_meta_files = utils.get_all_files(ui.directory, ".png.meta")
-        for file in all_png_meta_files:
-            unity_doc = unityparser.UnityDocument.load_yaml(file)
-            for entry in unity_doc.entries:
-                if guid == entry['guid']:
-                    return file.removesuffix('.meta')
+        if guid in utils.guid_to_path:
+            return utils.guid_to_path[guid]
 
                     
 

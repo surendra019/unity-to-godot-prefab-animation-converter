@@ -6,6 +6,7 @@ import random
 
 texture_insert_position = -1
 resource_ids = []
+guid_to_path = {}
 
 
 # extracts id value from a line string.
@@ -173,8 +174,12 @@ def quaternion_to_radians(q_x, q_y, q_z, q_w):
     return yaw
 
 
+#update mode:
+# 0- contiguious
+# 1- discrete
+
 # returns the track string line by adding the values.
-def get_track_string(animation_track_idx: int, node_path: string, times_string: string, transition_string: string, values_string: string, property: string):
+def get_track_string(animation_track_idx: int, node_path: string, times_string: string, transition_string: string, values_string: string, property: string, update_mode: int = 0):
     track = (
         f"tracks/{animation_track_idx}/type = \"value\"\n"
         f"tracks/{animation_track_idx}/imported = false\n"
@@ -186,7 +191,7 @@ def get_track_string(animation_track_idx: int, node_path: string, times_string: 
         f"{{\n"
         f"\"times\": {times_string},\n"
         f"\"transitions\": {transition_string},\n"
-        f"\"update\": 0,\n"
+        f"\"update\": {update_mode},\n"
         f"\"values\": {values_string}\n"
         f"}}\n"
     )
@@ -231,3 +236,14 @@ def print_entry_attributes(entry):
     # Iterate through the attributes and print them
     for attribute, value in attributes.items():
         print(f"{attribute}: {value}")
+
+
+# takes a path substring and returns the full path of that subtring if it is present in the full_path.
+def get_path_to_substring(full_path, substring):
+    # Check if the substring exists in the full path
+    if substring in full_path:
+        # Find the index where the substring starts
+        index = full_path.index(substring)
+        # Return the substring from the start of the full path to the end of the matched substring
+        return full_path[:index + len(substring)]
+    return full_path  # Return the full path if substring is not found

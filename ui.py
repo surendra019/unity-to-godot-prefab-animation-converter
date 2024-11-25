@@ -8,24 +8,31 @@ prefab_parser_function = None
 directory = None
 reference_folder = None
 progress_bar = None
+window = None
 
 # Create the main UI window
 def create_ui():
+    print(utils.get_reference_folder("C:/Users/DELL/AppData/Local/Programs/Python/Python312/python.exe"))
+
+    global window
     window = tk.Tk()
     window.title("Unity to Godot Prefab Converter")
 
     # Create a button to load a prefab file
     load_button = tk.Button(window, text="Load Prefab", command=lambda: load_prefab())
     load_button.pack(pady=10)
-    
-    global progress_bar
-    # Create a progress bar
-    progress_bar = ttk.Progressbar(window, length=200, mode="determinate")
+    show_progress_bar(100)
+
+    # Set the window size to 400x300 and center it
+    center_window(window, 400, 300)
     # Start the UI loop
     window.mainloop()
 
 # called from outside to show the progress bar.
-def show_progress_bar():
+def show_progress_bar(max_length: int):
+    global progress_bar
+
+    progress_bar = ttk.Progressbar(window, length=max_length, mode="determinate")
     progress_bar.pack(pady=20)
 
 
@@ -43,3 +50,16 @@ def load_prefab():
 
     if prefab_path and prefab_parser_function:
         prefab_parser_function(prefab_path)
+
+
+def center_window(window, width, height):
+    # Get the screen width and height
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+
+    # Calculate the position to center the window
+    x = (screen_width // 2) - (width // 2)
+    y = (screen_height // 2) - (height // 2)
+
+    # Set the window geometry (size and position)
+    window.geometry(f"{width}x{height}+{x}+{y}")
