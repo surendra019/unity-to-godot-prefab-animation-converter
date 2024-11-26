@@ -44,6 +44,6 @@ Ensure your files are organized as follows:
 ---
 
 ## License
-[Insert License Here, e.g., MIT License]
+This project is licensed under the [MIT License](LICENSE).
 
 
