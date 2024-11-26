@@ -43,15 +43,6 @@ Ensure your files are organized as follows:
 
 ---
 
-## Screenshots
-### Tool Interface
-![Tool Interface Screenshot](#) <!-- Replace with actual screenshot -->
-
-### Folder Selection
-![Folder Selection Screenshot](#) <!-- Replace with actual screenshot -->
-
----
-
 ## License
 [Insert License Here, e.g., MIT License]
 
