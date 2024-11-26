@@ -25,7 +25,7 @@ This tool converts Unity `.prefab` animations into Godot scenes with an `Animati
 <img src="tool converter ss.png">
 
 3. Select the folder containing all the animation files:  
-![Folder Selection Screenshot](#) <!-- Replace with actual screenshot -->
+<img src="tool converter folder.png">
 
 4. Follow these steps:
    - Click the **Load Prefab** button.
@@ -34,6 +34,7 @@ This tool converts Unity `.prefab` animations into Godot scenes with an `Animati
    - Select the folder where the `.tscn` file should be saved (this must be inside the Godot project directory, e.g., `res://Scenes/`).
 
 5. The `.tscn` file is now ready to be used in your Godot project.
+<img src="tool converter result.png">
 
 ## Example Directory Structure
 Ensure your files are organized as follows:
