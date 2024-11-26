@@ -29,7 +29,7 @@ This tool converts Unity `.prefab` animations into Godot scenes with an `Animati
 
 4. Follow these steps:
    - Click the **Load Prefab** button.
-   - Choose the folder containing your animation files (e.g., `res://Assets/PandaAnimation/`).
+   - Choose the folder containing your animation files (e.g., `res://Assets/Panda/`).
    - Wait 1-20 seconds for the `.tscn` file to be generated.
    - Select the folder where the `.tscn` file should be saved (this must be inside the Godot project directory, e.g., `res://Scenes/`).
 
