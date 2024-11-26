@@ -25,7 +25,7 @@ This tool converts Unity `.prefab` animations into Godot scenes with an `Animati
 <img src="tool converter ss.png">
 
 3. Select the folder containing all the animation files:  
-<img src="tool converter folder.png">
+<img src="tool converter file.png">
 
 4. Follow these steps:
    - Click the **Load Prefab** button.
