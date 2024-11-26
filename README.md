@@ -38,8 +38,8 @@ This tool converts Unity `.prefab` animations into Godot scenes with an `Animati
 Ensure your files are organized as follows:
 
 ## Notes
-- Ensure all necessary files are present and properly organized before using the tool.
-- The tool supports Godot 4.x versions up to 4.3 (and likely higher versions).
+   - Ensure all necessary files are present and properly organized before using the tool.
+   - The tool supports Godot 4.x versions up to 4.3 (and likely higher versions).
 
 ---
 
