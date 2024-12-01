@@ -7,6 +7,12 @@ This tool converts Unity `.prefab` animations into Godot scenes with an `Animati
 - Generates `.tscn` files with animations that can be played in Godot.
 - Easy-to-use interface for folder selection and loading prefabs.
 
+## How it works
+- Scans the `.prefab` file (`GameObject` and `SpriteRenderer` component) and convert it to Godot's `Node2D` and `Sprite2D` hierarchy.
+- Scans the `.png.meta` files to get the used images and textures and assign them to the respective `Sprite2D` nodes.
+- Scans the `.anim` file and create an `AnimationPlayer` node and set the corresponding properties(see the releases for properties).
+- Creates a `.tscn` file by combining all the things.
+
 ## Usage Conditions
 1. The `.prefab` scene must only contain `GameObject` and `SpriteRenderer` components.
 2. All related animation files must be stored in **the same folder**, including:
