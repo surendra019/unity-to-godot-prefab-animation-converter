@@ -247,3 +247,34 @@ def get_path_to_substring(full_path, substring):
         # Return the substring from the start of the full path to the end of the matched substring
         return full_path[:index + len(substring)]
     return full_path  # Return the full path if substring is not found
+
+
+def find_property_value(string_data, full_path, property_name):
+    # Split the full path into parent path and node name
+    *parent_parts, node_name = full_path.strip('/').split('/')
+    parent_name = '/'.join(parent_parts)
+
+    # Regular expression to find the node with the given parent and name
+    node_pattern = rf'\[node name="{node_name}" type=".*?" parent="{parent_name + '/'}"\]'
+    node_match = re.search(node_pattern, string_data)
+    
+    if not node_match:
+        print("node not match")
+        return None  # Node with the specified parent and name not found
+    
+    # Start searching for the property after the node header
+    start_index = node_match.end()
+    remaining_data = string_data[start_index:]
+    
+    # Regular expression to find the property value
+    property_pattern = rf'{property_name} ?= ?(.*)'
+    property_match = re.search(property_pattern, remaining_data)
+    
+    if not property_match:
+        print("property not match")
+        return None  # Property not found
+    
+    # Return the value of the property
+    return property_match.group(1).strip()
+
+# print(find_property_value(string_data, "Icon", "rotation"))

@@ -41,12 +41,10 @@ def parse_unity_prefab_to_godot(prefab_path):
             for entry in unity_d.entries:
                 utils.guid_to_path[entry['guid']] = file.removesuffix('.meta')
 
-        # print(utils.guid_to_path)
         add_children(entries, get_transform_object_by_game_object(entries, parent_node))
+        # print(utils.find_property_value(godot_scene, "Panda_Step_1_Rig/Panda/Panda_Anim/Body/Head/Eyes/", "position"))
 
         add_animation_player(entries)
-        # print(get_complete_node_path_from_game_object_name(entries, "Elephant_Side_Charecter_Trns"))
-        # print(is_sub_path_exists(entries, "Elephant_Side_Charecter_Trns/FullBody_Anim/Body_Transform/Body_Anim/Hand1_Transform/Hand1_Anim"))
 
         # Optionally, save the generated scene to a .tscn file
         save_path = filedialog.asksaveasfilename(defaultextension=".tscn", filetypes=[("Godot Scene", "*.tscn")])
@@ -259,7 +257,7 @@ def assign_transform(entries, game_object):
 # assigns the texture.
 def assign_texture(entries, game_object):
     path = get_png_image_path(entries, game_object)
-    print(path)
+    # print(path)
     if path != None:
         godot_relative_path = utils.convert_to_res_path(path, ui.reference_folder)
         global godot_scene
@@ -285,7 +283,7 @@ def assign_other_properties(entries, game_object):
 
             mask_interaction = False if _class.m_MaskInteraction == '1' else True # kind of visibility in godot for now.
 
-            z_index_string = f"z_index = {z_index}"
+            z_index_string = f"z_index = {z_index}\n"
 
             godot_scene += z_index_string
             enabled = True if _class.m_Enabled == '1' else False
@@ -324,11 +322,16 @@ def add_children(entries, entry):
 # adds animation player with all the animations.
 def add_animation_player(entries):
     animation_files = utils.get_all_files(ui.directory, ".anim")
+    if len(animation_files) == 0:
+        print("No animation files found!")
+        return
     global godot_scene
     insert_idx = utils.get_insert_index_after_ext_resources(godot_scene)
     animation_name_to_id = {}
 
+
     files = animation_files
+    reset_track_data = {}
 
     for file in files:
         ui.progress_bar['value'] = (100 / len(files)) * files.index(file) + 1
@@ -397,13 +400,19 @@ def add_animation_player(entries):
 
                 full_path = keyframes['path']  # The file path
 
-
+                # print("path : ", full_path)
 
                 if get_complete_node_path_from_game_object_name(entries, full_path) == None:
                     continue
                 elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
                     node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
+                if not node_path in reset_track_data:
+                    reset_track_data[node_path] = "rotation"
+                else:
+                    reset_track_data[node_path] += ",rotation"
+
+                # print(node_path)
                 
                 track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "rotation")
 
@@ -453,6 +462,10 @@ def add_animation_player(entries):
                 elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
                     node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
+                if not node_path in reset_track_data:
+                    reset_track_data[node_path] = "position"
+                else:
+                    reset_track_data[node_path] += ",position"
                 
                 track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "position")
 
@@ -504,6 +517,10 @@ def add_animation_player(entries):
                     node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
 
+                if not node_path in reset_track_data:
+                    reset_track_data[node_path] = "scale"
+                else:
+                    reset_track_data[node_path] += ",scale"
                 
                 track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "scale")
 
@@ -558,6 +575,10 @@ def add_animation_player(entries):
                             elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
                                 node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
+                            if not node_path in reset_track_data:
+                                reset_track_data[node_path] = "visible"
+                            else:
+                                reset_track_data[node_path] += ",visible"
                             
                             track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "visible", 1)
 
@@ -604,6 +625,10 @@ def add_animation_player(entries):
                                 continue
                             elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
                                 node_path = get_complete_node_path_from_game_object_name(entries, full_path)
+                            if not node_path in reset_track_data:
+                                reset_track_data[node_path] = "z_index"
+                            else:
+                                reset_track_data[node_path] += ",z_index"
 
                             
                             track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "z_index", 1)
@@ -653,6 +678,10 @@ def add_animation_player(entries):
                             elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
                                 node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
+                            if not node_path in reset_track_data:
+                                reset_track_data[node_path] = "visible"
+                            else:
+                                reset_track_data[node_path] += ",visible"
 
                             
                             track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "visible", 1)
@@ -724,6 +753,10 @@ def add_animation_player(entries):
                             elif get_complete_node_path_from_game_object_name(entries, full_path) != "":
                                 node_path = get_complete_node_path_from_game_object_name(entries, full_path)
 
+                            if not node_path in reset_track_data:
+                                reset_track_data[node_path] = "texture"
+                            else:
+                                reset_track_data[node_path] += ",texture"
                             
                             track = utils.get_track_string(animation_track_idx, node_path, times_string, transition_string, values_string, "texture")
 
@@ -731,11 +764,36 @@ def add_animation_player(entries):
                             godot_scene = utils.insert_at_index(godot_scene, insert_idx, track)
                             insert_idx += len(track)
                             animation_track_idx += 1
-                
+
+
+    animation_track_idx = 0
+
+
+    reset_animation_id = utils.generate_unique_id()
+    anim_length = 0.001
+    animation_text = f"\n[sub_resource type=\"Animation\" id=\"{reset_animation_id}\"]\nlength = {anim_length}\n"
+
+    godot_scene = utils.insert_at_index(godot_scene, insert_idx, animation_text)
+    insert_idx += len(animation_text)
+
+    for i in reset_track_data:
+        print(reset_track_data[i].strip().split(','))
+        for j in reset_track_data[i].strip().split(','):
+            property_value = utils.find_property_value(godot_scene, i + '/', j)
+            if property_value:
+                track = utils.get_track_string(animation_track_idx, i + '/', "PackedFloat32Array(0)", "PackedFloat32Array(1)", f"[{property_value}]", j)
+                godot_scene = utils.insert_at_index(godot_scene, insert_idx, track)
+                insert_idx += len(track)
+                animation_track_idx += 1
+    
+
+
     animation_library_id = utils.generate_unique_id()
     animation_library_string = f"\n[sub_resource type=\"AnimationLibrary\" id=\"{animation_library_id}\"]\n"
 
     animation_data_string = f"_data = {{"
+
+    animation_data_string += f"\"RESET\" : SubResource(\"{reset_animation_id}\"),\n"
     for i in animation_name_to_id:
         if list(animation_name_to_id.keys()).index(i) != len(list(animation_name_to_id.keys())) - 1:
             animation_data_string += f"\"{i}\" : SubResource(\"{animation_name_to_id[i]}\"),\n"
